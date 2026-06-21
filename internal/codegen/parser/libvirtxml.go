@@ -196,8 +196,15 @@ func (r *LibvirtXMLReflector) analyzeField(structName string, field reflect.Stru
 			return nil, err
 		}
 		if xmlTag == "" {
-			// Skip fields without XML tags
-			return nil, nil
+			// Check the declarative tag override table before skipping.
+			// This handles fields whose XML element name is encoded in a parent's custom
+			// MarshalXML/UnmarshalXML rather than in a struct tag.
+			if override, ok := xmlTagOverrides[structName+"."+field.Name]; ok {
+				xmlTag = override
+			} else {
+				// Skip fields without XML tags
+				return nil, nil
+			}
 		}
 	}
 
@@ -285,6 +292,16 @@ func (r *LibvirtXMLReflector) analyzeField(structName string, field reflect.Stru
 			return nil, nil
 		}
 
+		// Check if the type implements xml.MarshalerAttr (pointer receiver).
+		// Such types are polymorphic string scalars in XML and map to types.String,
+		// not types.Object. Do not recurse into their internal fields.
+		if r.detectXMLMarshalerScalar(fieldType) {
+			fieldIR.TFType = "types.String"
+			fieldIR.IsXMLMarshalerScalar = true
+			fieldIR.XMLMarshalerTypeName = fieldType.Name()
+			fieldIR.IsOptional = true
+			fieldIR.PreserveUserIntent = true
+		} else {
 		// Check for circular reference
 		if r.isInAnalysisStack(fieldType.Name()) {
 			fieldIR.IsCycle = true
@@ -317,6 +334,7 @@ func (r *LibvirtXMLReflector) analyzeField(structName string, field reflect.Stru
 		} else {
 			fieldIR.TFType = "types.Object"
 		}
+		} // end else (not XMLMarshalerScalar)
 	} else {
 		// Map primitive types
 		fieldIR.TFType = r.goTypeToTFType(fieldType)
@@ -325,9 +343,11 @@ func (r *LibvirtXMLReflector) analyzeField(structName string, field reflect.Stru
 	// Convert to snake_case for Terraform
 	fieldIR.TFName = stringutil.SnakeCase(field.Name)
 
-	// For now, assume omitempty, pointer, or list means optional, otherwise required
-	// This will be refined with RNG schema information later
-	if fieldIR.OmitEmpty || fieldIR.IsPointer || fieldIR.IsList {
+	// For now, assume omitempty, pointer, list, or XML marshaler scalar means optional,
+	// otherwise required. This will be refined with RNG schema information later.
+	// Note: IsXMLMarshalerScalar fields (e.g. NWFilterField) are always optional --
+	// they represent filter match criteria that are never mandatory in the RNG schema.
+	if fieldIR.OmitEmpty || fieldIR.IsPointer || fieldIR.IsList || fieldIR.IsXMLMarshalerScalar {
 		fieldIR.IsOptional = true
 		fieldIR.IsRequired = false
 		// Optional fields should preserve user intent

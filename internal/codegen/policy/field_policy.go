@@ -43,6 +43,14 @@ var fieldPolicies = map[string][]fieldPolicy{
 		// so the planned value must win against the readback value.
 		policyPreservePlannedValueOnReadbackOmit,
 	},
+	// NWFilter: rule action and direction are required per the RNG schema but libvirtxml
+	// marks them omitempty, so the reflector defaults to Optional. Override to Required.
+	"NWFilterRule.action": {
+		policyRequiredField,
+	},
+	"NWFilterRule.direction": {
+		policyRequiredField,
+	},
 }
 
 // ApplyFieldPolicies mutates the IR with Terraform-specific schema/conversion
@@ -135,4 +143,11 @@ func policyDisablePreserveUserIntent(field *generator.FieldIR) {
 
 func policyPreservePlannedValueOnReadbackOmit(field *generator.FieldIR) {
 	field.PreservePlannedValueOnReadbackOmit = true
+}
+
+func policyRequiredField(field *generator.FieldIR) {
+	field.IsRequired = true
+	field.IsOptional = false
+	field.IsComputed = false
+	field.PreserveUserIntent = false
 }
