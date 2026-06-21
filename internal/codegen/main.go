@@ -41,6 +41,7 @@ func run() error {
 		{"network", reflect.TypeOf(libvirtxml.Network{})},
 		{"storage_pool", reflect.TypeOf(libvirtxml.StoragePool{})},
 		{"storage_volume", reflect.TypeOf(libvirtxml.StorageVolume{})},
+		{"nw_filter", reflect.TypeOf(libvirtxml.NWFilter{})},
 	}
 
 	// Collect all structs from all resources (deduplicated)

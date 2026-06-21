@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"encoding/xml"
 	"reflect"
 	"strings"
 
@@ -100,6 +101,15 @@ func (r *LibvirtXMLReflector) detectBooleanToPresence(structType reflect.Type) *
 	}
 
 	return nil
+}
+
+// detectXMLMarshalerScalar checks if a struct type implements xml.MarshalerAttr
+// (via a pointer receiver). Such types act as polymorphic string scalars in XML
+// (e.g. NWFilterField which accepts literals, $VAR references, or 0xHEX values)
+// and should be mapped to types.String in Terraform rather than types.Object.
+func (r *LibvirtXMLReflector) detectXMLMarshalerScalar(fieldType reflect.Type) bool {
+	marshalerAttr := reflect.TypeOf((*xml.MarshalerAttr)(nil)).Elem()
+	return reflect.PointerTo(fieldType).Implements(marshalerAttr)
 }
 
 // detectStringToBool detects if a string field should be boolean in TF.

@@ -164,6 +164,15 @@ type FieldIR struct {
 	// FlattenedAttrName stores the XML attribute this flattened field represents (e.g., "unit", "placement")
 	FlattenedAttrName string
 
+	// IsXMLMarshalerScalar indicates the Go type implements xml.MarshalerAttr/UnmarshalerAttr
+	// and should be mapped to types.String rather than types.Object.
+	// Conversion uses the interface methods directly instead of field-by-field reflection.
+	IsXMLMarshalerScalar bool
+
+	// XMLMarshalerTypeName is the libvirtxml type name for XMLMarshalerScalar fields
+	// (e.g. "NWFilterField"). Used in the conversion template to call the correct methods.
+	XMLMarshalerTypeName string
+
 	// TFPath stores the full Terraform path (e.g., "domain.cpu.model")
 	TFPath string
 

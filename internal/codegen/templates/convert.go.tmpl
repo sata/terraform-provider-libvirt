@@ -4,6 +4,7 @@ package generated
 
 import (
 	"context"
+	xmlenc "encoding/xml"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -15,6 +16,7 @@ var (
 	_ = fmt.Sprintf                 // Avoid unused import errors
 	_ = basetypes.ObjectAsOptions{} // Avoid unused import errors
 	_ = types.StringNull()          // Avoid unused import errors
+	_ = xmlenc.Name{}               // Avoid unused import errors
 )
 
 {{- range .Structs }}
@@ -246,7 +248,22 @@ func {{ .Name }}ToXML(ctx context.Context, model *{{ .Name }}Model) (*libvirtxml
 {{- end }}
 
 {{- define "fromXMLField" }}
-{{- if .IsFlattenedValue }}
+{{- if .IsXMLMarshalerScalar }}
+	// XML marshaler scalar field: {{ .GoName }} ({{ .XMLMarshalerTypeName }})
+	// The type implements xml.MarshalerAttr; round-trip through its string representation.
+	if plan == nil || !plan.{{ .GoName }}.IsNull() {
+		{
+			attr, _ := xml.{{ .GoName }}.MarshalXMLAttr(xmlenc.Name{Local: "{{ .XMLName }}"})
+			if attr.Value != "" {
+				model.{{ .GoName }} = types.StringValue(attr.Value)
+			} else {
+				model.{{ .GoName }} = types.StringNull()
+			}
+		}
+	} else {
+		model.{{ .GoName }} = types.StringNull()
+	}
+{{- else if .IsFlattenedValue }}
 	// Flattened chardata+attributes field: {{ .GoName }}
 	{{- $valueField := .NestedStruct.ValueWithUnitPattern.ValueFieldName }}
 	{{- $alwaysRead := and .IsComputed (not .PreserveUserIntent) }}
@@ -634,7 +651,12 @@ func {{ .Name }}ToXML(ctx context.Context, model *{{ .Name }}Model) (*libvirtxml
 {{- end }}
 
 {{- define "toXMLField" }}
-{{- if .IsFlattenedValue }}
+{{- if .IsXMLMarshalerScalar }}
+	// XML marshaler scalar field: {{ .GoName }} ({{ .XMLMarshalerTypeName }})
+	if !model.{{ .GoName }}.IsNull() && !model.{{ .GoName }}.IsUnknown() {
+		_ = xml.{{ .GoName }}.UnmarshalXMLAttr(xmlenc.Attr{Value: model.{{ .GoName }}.ValueString()})
+	}
+{{- else if .IsFlattenedValue }}
 	// Flattened chardata+attributes field: {{ .GoName }}
 	if !model.{{ .GoName }}.IsNull() && !model.{{ .GoName }}.IsUnknown() {
 		{{- $valueType := .NestedStruct.ValueWithUnitPattern.ValueGoType }}
